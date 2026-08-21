@@ -4,7 +4,7 @@ const float shadowDistanceRenderMul = 1.0;
 const bool shadowtex0Nearest = true;
 
 // Keep the distortion moderate to avoid over-stretching block side faces.
-const float shadowDistortionStrength = 0.55;
+const float shadowDistortionStrength = 0.40;
 
 vec3 distortShadowClipPos(vec3 shadowClipPosition) {
 	float distortionRadius = length(shadowClipPosition.xy) + 0.1;

@@ -6,11 +6,13 @@ uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 shadowModelView;
 uniform mat4 shadowProjection;
+uniform vec3 shadowLightPosition;
 
 uniform float viewWidth;
 uniform float viewHeight;
 
-const float shadowBias = 0.0025;
+const float shadowBias = 0.0012;
+const float shadowSlopeBias = 0.0055;
 const float shadowStrength = 0.65;
 
 vec3 getShadowPosition() {
@@ -22,7 +24,11 @@ vec3 getShadowPosition() {
 
 	vec3 playerPosition = (gbufferModelViewInverse * viewPosition).xyz;
 	vec4 shadowClipPosition = shadowProjection * shadowModelView * vec4(playerPosition, 1.0);
-	shadowClipPosition.z -= shadowBias;
+
+	// Increase the bias on surfaces seen at a grazing angle to prevent acne stripes.
+	float lightFacing = abs(dot(normalize(normal), normalize(shadowLightPosition)));
+	float slopeBias = shadowBias + shadowSlopeBias * (1.0 - lightFacing);
+	shadowClipPosition.z -= slopeBias;
 	shadowClipPosition.xyz = distortShadowClipPos(shadowClipPosition.xyz);
 
 	return shadowClipPosition.xyz / shadowClipPosition.w * 0.5 + 0.5;
