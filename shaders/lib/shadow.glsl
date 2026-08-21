@@ -17,6 +17,7 @@ const float shadowSlopeBias = 0.0055;
 // This keeps fully shadowed surfaces readable instead of multiplying them to black.
 const float shadowStrength = 0.58;
 const float shadowAmbient = 0.42;
+const float darkMaterialAmbientLift = 0.16;
 
 vec3 getShadowPosition() {
 	vec2 screenUV = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
@@ -37,7 +38,7 @@ vec3 getShadowPosition() {
 	return shadowClipPosition.xyz / shadowClipPosition.w * 0.5 + 0.5;
 }
 
-float getShadowFactor() {
+float getShadowFactor(vec3 materialColor, float materialAmbientBoost) {
 	vec3 shadowPosition = getShadowPosition();
 
 	// Fragments outside the sun/moon shadow frustum are lit.
@@ -46,6 +47,14 @@ float getShadowFactor() {
 		shadowPosition.z <= 0.0 || shadowPosition.z >= 1.0) {
 		return 1.0;
 	}
+
+	// Darker albedo needs a little more fill light to keep grass and dirt readable.
+	float materialLuminance = dot(clamp(materialColor, 0.0, 1.0),
+		vec3(0.2126, 0.7152, 0.0722));
+	float darkMaterialMask = 1.0 - smoothstep(0.15, 0.60, materialLuminance);
+	float materialAmbient = shadowAmbient
+		+ darkMaterialMask * darkMaterialAmbientLift
+		+ materialAmbientBoost;
 
 	// A small 2x2 filter removes one-pixel stripes without the blur of a 3x3 PCF.
 	vec2 texelSize = 1.0 / vec2(textureSize(shadowtex0, 0));
@@ -58,5 +67,9 @@ float getShadowFactor() {
 		}
 	}
 	shadow *= 0.25;
-	return clamp(shadow * shadowStrength + shadowAmbient, 0.0, 1.0);
+	return clamp(shadow * shadowStrength + materialAmbient, 0.0, 1.0);
+}
+
+float getShadowFactor(vec3 materialColor) {
+	return getShadowFactor(materialColor, 0.0);
 }

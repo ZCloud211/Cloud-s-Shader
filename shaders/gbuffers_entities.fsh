@@ -20,7 +20,7 @@ void main() {
 	color = texture(gtexture, texcoord) * glcolor;
 	color.rgb = mix(color.rgb, entityColor.rgb, entityColor.a);
 	color *= texture(lightmap, lmcoord);
-	color.rgb *= getShadowFactor();
+	color.rgb *= getShadowFactor(color.rgb);
 	if (color.a < alphaTestRef) {
 		discard;
 	}
