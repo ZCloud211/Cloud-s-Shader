@@ -13,7 +13,10 @@ uniform float viewHeight;
 
 const float shadowBias = 0.0012;
 const float shadowSlopeBias = 0.0055;
-const float shadowStrength = 0.65;
+// Split the final light into direct sun/moon light and a soft environment fill.
+// This keeps fully shadowed surfaces readable instead of multiplying them to black.
+const float shadowStrength = 0.58;
+const float shadowAmbient = 0.42;
 
 vec3 getShadowPosition() {
 	vec2 screenUV = gl_FragCoord.xy / vec2(viewWidth, viewHeight);
@@ -55,5 +58,5 @@ float getShadowFactor() {
 		}
 	}
 	shadow *= 0.25;
-	return mix(1.0, shadow, shadowStrength);
+	return clamp(shadow * shadowStrength + shadowAmbient, 0.0, 1.0);
 }
