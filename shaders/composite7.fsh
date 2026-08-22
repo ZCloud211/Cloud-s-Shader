@@ -2,6 +2,7 @@
 
 uniform sampler2D colortex0;
 uniform sampler2D colortex4;
+uniform sampler2D colortex5;
 uniform sampler2D depthtex0;
 uniform sampler2D depthtex1;
 
@@ -18,6 +19,8 @@ in vec2 texcoord;
 
 /* RENDERTARGETS: 0 */
 layout(location = 0) out vec4 color;
+
+const bool DEBUG_OPAQUE_SCENE = false;
 
 vec3 reconstructViewPosition(vec2 screenUV, float depth) {
 	vec3 ndcPosition = vec3(screenUV, depth) * 2.0 - 1.0;
@@ -120,6 +123,11 @@ bool traceWaterSSR(
 }
 
 void main() {
+	if (DEBUG_OPAQUE_SCENE) {
+		color = texture(colortex5, texcoord);
+		return;
+	}
+
 	vec4 scene = texture(colortex0, texcoord);
 	vec4 waterData = texture(colortex4, texcoord);
 	float waterMask = waterData.a;
@@ -156,7 +164,10 @@ void main() {
 		hitUV,
 		travelDistance
 	);
-	vec3 ssrColor = texture(colortex0, hitUV).rgb;
+	vec3 ssrColor = reflectedSky;
+	if (hitFound) {
+		ssrColor = texture(colortex5, hitUV).rgb;
+	}
 	float edgeDistance = min(min(hitUV.x, 1.0 - hitUV.x),
 		min(hitUV.y, 1.0 - hitUV.y));
 	float edgeFade = smoothstep(0.015, 0.08, edgeDistance);
