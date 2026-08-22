@@ -9,6 +9,8 @@ uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 shadowModelView;
 uniform mat4 shadowProjection;
+uniform vec3 shadowLightPosition;
+uniform vec3 upPosition;
 
 in vec2 texcoord;
 
@@ -20,7 +22,17 @@ vec3 projectAndDivide(mat4 projectionMatrix, vec3 position) {
 	return homogeneousPosition.xyz / homogeneousPosition.w;
 }
 
-vec3 getShadowScreenPosition(vec2 screenUV, float depth) {
+float getShadowLightElevation() {
+	vec3 lightDirection = normalize(shadowLightPosition);
+	vec3 upDirection = normalize(upPosition);
+	return clamp(abs(dot(lightDirection, upDirection)), 0.0, 1.0);
+}
+
+vec3 getShadowScreenPosition(
+	vec2 screenUV,
+	float depth,
+	float receiverBias
+) {
 	vec3 ndcPosition = vec3(screenUV, depth) * 2.0 - 1.0;
 	vec3 viewPosition = projectAndDivide(gbufferProjectionInverse, ndcPosition);
 	vec3 playerPosition = (gbufferModelViewInverse
@@ -32,7 +44,7 @@ vec3 getShadowScreenPosition(vec2 screenUV, float depth) {
 
 	// Side faces are the most susceptible to depth quantization acne. Keep one
 	// clip-space-only bias before the divide; no normal, slope, or screen bias.
-	shadowClipPosition.z -= 0.002;
+	shadowClipPosition.z -= receiverBias;
 	vec3 shadowNdcPosition = shadowClipPosition.xyz / shadowClipPosition.w;
 	return shadowNdcPosition * 0.5 + 0.5;
 }
@@ -82,8 +94,31 @@ void main() {
 		return;
 	}
 
-	vec3 shadowScreenPosition = getShadowScreenPosition(texcoord, depth);
+	float lightElevation = getShadowLightElevation();
+	float lowAngleFactor = 1.0 - smoothstep(
+		0.04,
+		0.18,
+		lightElevation
+	);
+	const float NORMAL_RECEIVER_BIAS = 0.0020;
+	const float HORIZON_RECEIVER_BIAS = 0.0035;
+	float receiverBias = mix(
+		NORMAL_RECEIVER_BIAS,
+		HORIZON_RECEIVER_BIAS,
+		lowAngleFactor
+	);
+	vec3 shadowScreenPosition = getShadowScreenPosition(
+		texcoord,
+		depth,
+		receiverBias
+	);
 	float shadow = sampleStableShadow(shadowScreenPosition);
+	float horizonShadowVisibility = smoothstep(
+		0.025,
+		0.10,
+		lightElevation
+	);
+	shadow = mix(1.0, shadow, horizonShadowVisibility);
 	const float shadowAmbient = 0.42;
 	vec4 materialData = texture(colortex3, texcoord);
 	vec3 emissionColor = materialData.rgb;
