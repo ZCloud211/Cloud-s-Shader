@@ -115,7 +115,7 @@ void main() {
 	float shadow = sampleStableShadow(shadowScreenPosition);
 	float horizonShadowVisibility = smoothstep(
 		0.025,
-		0.10,
+		0.12,
 		lightElevation
 	);
 	shadow = mix(1.0, shadow, horizonShadowVisibility);
