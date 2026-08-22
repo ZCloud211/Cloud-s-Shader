@@ -1,6 +1,7 @@
 #version 330 compatibility
 
 uniform sampler2D colortex0;
+uniform sampler2D colortex3;
 uniform sampler2D depthtex0;
 uniform sampler2D shadowtex0;
 
@@ -84,5 +85,16 @@ void main() {
 	vec3 shadowScreenPosition = getShadowScreenPosition(texcoord, depth);
 	float shadow = sampleStableShadow(shadowScreenPosition);
 	const float shadowAmbient = 0.42;
-	color.rgb *= mix(shadowAmbient, 1.0, shadow);
+	vec4 materialData = texture(colortex3, texcoord);
+	vec3 emissionColor = materialData.rgb;
+	float blockLight = materialData.a;
+	float sunShadowFactor = mix(shadowAmbient, 1.0, shadow);
+	float blockLightProtection = smoothstep(0.10, 0.85, blockLight);
+	float combinedShadowFactor = mix(
+		sunShadowFactor,
+		1.0,
+		blockLightProtection
+	);
+	color.rgb *= combinedShadowFactor;
+	color.rgb = max(color.rgb, emissionColor);
 }

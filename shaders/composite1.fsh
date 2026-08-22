@@ -1,6 +1,7 @@
 #version 330 compatibility
 
 uniform sampler2D colortex0;
+uniform sampler2D colortex3;
 
 in vec2 texcoord;
 
@@ -16,14 +17,26 @@ vec2 getSafeSourceUV(vec2 offset, vec2 halfTexel) {
 	return clamp(texcoord + offset, halfTexel, vec2(1.0) - halfTexel);
 }
 
-vec3 extractBloom(vec3 color) {
-	float brightness = max(color.r, max(color.g, color.b));
-	float mask = smoothstep(
+vec3 extractBloom(vec3 sceneColor, vec3 emissionColor) {
+	float brightness = max(
+		sceneColor.r,
+		max(sceneColor.g, sceneColor.b)
+	);
+	float screenMask = smoothstep(
 		BLOOM_THRESHOLD - BLOOM_KNEE,
 		BLOOM_THRESHOLD + BLOOM_KNEE,
 		brightness
 	);
-	return color * mask;
+	vec3 screenBloom = sceneColor * screenMask;
+	const float EMISSION_BLOOM_GAIN = 1.25;
+	vec3 emissiveBloom = emissionColor * EMISSION_BLOOM_GAIN;
+	return max(screenBloom, emissiveBloom);
+}
+
+vec3 sampleExtractedBloom(vec2 sampleUV) {
+	vec3 sceneSample = texture(colortex0, sampleUV).rgb;
+	vec3 emissionSample = texture(colortex3, sampleUV).rgb;
+	return extractBloom(sceneSample, emissionSample);
 }
 
 void main() {
@@ -32,10 +45,10 @@ void main() {
 	vec2 halfTexel = sourceTexel * 0.5;
 
 	vec3 extracted = vec3(0.0);
-	extracted += extractBloom(texture(colortex0, getSafeSourceUV(vec2(-0.5, -0.5) * sourceTexel, halfTexel)).rgb);
-	extracted += extractBloom(texture(colortex0, getSafeSourceUV(vec2( 0.5, -0.5) * sourceTexel, halfTexel)).rgb);
-	extracted += extractBloom(texture(colortex0, getSafeSourceUV(vec2(-0.5,  0.5) * sourceTexel, halfTexel)).rgb);
-	extracted += extractBloom(texture(colortex0, getSafeSourceUV(vec2( 0.5,  0.5) * sourceTexel, halfTexel)).rgb);
+	extracted += sampleExtractedBloom(getSafeSourceUV(vec2(-0.5, -0.5) * sourceTexel, halfTexel));
+	extracted += sampleExtractedBloom(getSafeSourceUV(vec2( 0.5, -0.5) * sourceTexel, halfTexel));
+	extracted += sampleExtractedBloom(getSafeSourceUV(vec2(-0.5,  0.5) * sourceTexel, halfTexel));
+	extracted += sampleExtractedBloom(getSafeSourceUV(vec2( 0.5,  0.5) * sourceTexel, halfTexel));
 	extracted *= 0.25;
 
 	bloomColor = vec4(extracted, 1.0);
