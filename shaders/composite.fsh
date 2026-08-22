@@ -86,6 +86,24 @@ float sampleStableShadow(vec3 shadowScreenPosition) {
 	return mix(row0, row1, fractionPart.y);
 }
 
+vec3 getVisibleEmission(vec3 emissionRadiance) {
+	float peakRadiance = max(
+		emissionRadiance.r,
+		max(emissionRadiance.g, emissionRadiance.b)
+	);
+
+	if (peakRadiance <= 0.00001) {
+		return vec3(0.0);
+	}
+
+	vec3 chromaticity = emissionRadiance / peakRadiance;
+	const float EMISSION_DISPLAY_EXPOSURE = 0.55;
+	float visibleIntensity =
+		1.0 - exp(-peakRadiance * EMISSION_DISPLAY_EXPOSURE);
+
+	return chromaticity * visibleIntensity;
+}
+
 void main() {
 	color = texture(colortex0, texcoord);
 
@@ -121,7 +139,8 @@ void main() {
 	shadow = mix(1.0, shadow, horizonShadowVisibility);
 	const float shadowAmbient = 0.42;
 	vec4 materialData = texture(colortex3, texcoord);
-	vec3 emissionColor = materialData.rgb;
+	vec3 emissionRadiance = materialData.rgb;
+	vec3 visibleEmission = getVisibleEmission(emissionRadiance);
 	float blockLight = materialData.a;
 	float sunShadowFactor = mix(shadowAmbient, 1.0, shadow);
 	float blockLightFill = smoothstep(0.18, 0.95, blockLight);
@@ -131,5 +150,5 @@ void main() {
 		MAX_BLOCKLIGHT_SHADOW_RELIEF;
 	combinedShadowFactor = clamp(combinedShadowFactor, 0.0, 1.0);
 	color.rgb *= combinedShadowFactor;
-	color.rgb = max(color.rgb, emissionColor);
+	color.rgb = max(color.rgb, visibleEmission);
 }
