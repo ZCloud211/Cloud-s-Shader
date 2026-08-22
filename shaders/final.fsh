@@ -8,9 +8,9 @@ in vec2 texcoord;
 
 layout(location = 0) out vec4 color;
 
-const float BLOOM_NEAR_WEIGHT = 0.72;
-const float BLOOM_WIDE_WEIGHT = 0.28;
-const float BLOOM_INTENSITY = 0.06;
+const float BLOOM_NEAR_WEIGHT = 0.62;
+const float BLOOM_WIDE_WEIGHT = 0.38;
+const float BLOOM_RESPONSE = 0.16;
 
 vec3 sampleBilinear(sampler2D textureSampler, vec2 uv) {
 	ivec2 textureSizePixels = textureSize(textureSampler, 0);
@@ -33,6 +33,8 @@ void main() {
 	vec3 nearBloom = sampleBilinear(colortex1, texcoord);
 	vec3 wideBloom = sampleBilinear(colortex2, texcoord);
 	vec3 bloom = nearBloom * BLOOM_NEAR_WEIGHT + wideBloom * BLOOM_WIDE_WEIGHT;
-	vec3 result = scene.rgb + bloom * BLOOM_INTENSITY;
+	vec3 bloomResponse = vec3(1.0) - exp(-bloom * BLOOM_RESPONSE);
+	vec3 result = scene.rgb + (vec3(1.0) - scene.rgb) * bloomResponse;
+	result = clamp(result, 0.0, 1.0);
 	color = vec4(result, scene.a);
 }

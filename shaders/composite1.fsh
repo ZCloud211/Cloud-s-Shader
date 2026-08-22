@@ -27,9 +27,17 @@ vec3 extractBloom(vec3 sceneColor, vec3 emissionColor) {
 		BLOOM_THRESHOLD + BLOOM_KNEE,
 		brightness
 	);
-	vec3 screenBloom = sceneColor * screenMask;
-	const float EMISSION_BLOOM_GAIN = 1.25;
-	vec3 emissiveBloom = emissionColor * EMISSION_BLOOM_GAIN;
+	vec3 screenBloom = sceneColor * screenMask * 0.35;
+	float emissionBrightness = max(
+		emissionColor.r,
+		max(emissionColor.g, emissionColor.b)
+	);
+	float adaptiveEmissionGain = mix(
+		1.50,
+		2.20,
+		smoothstep(0.15, 0.90, emissionBrightness)
+	);
+	vec3 emissiveBloom = emissionColor * adaptiveEmissionGain;
 	return max(screenBloom, emissiveBloom);
 }
 

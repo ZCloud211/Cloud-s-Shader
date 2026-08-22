@@ -89,12 +89,12 @@ void main() {
 	vec3 emissionColor = materialData.rgb;
 	float blockLight = materialData.a;
 	float sunShadowFactor = mix(shadowAmbient, 1.0, shadow);
-	float blockLightProtection = smoothstep(0.10, 0.85, blockLight);
-	float combinedShadowFactor = mix(
-		sunShadowFactor,
-		1.0,
-		blockLightProtection
-	);
+	float blockLightFill = smoothstep(0.18, 0.95, blockLight);
+	const float MAX_BLOCKLIGHT_SHADOW_RELIEF = 0.35;
+	float combinedShadowFactor = sunShadowFactor +
+		(1.0 - sunShadowFactor) * blockLightFill *
+		MAX_BLOCKLIGHT_SHADOW_RELIEF;
+	combinedShadowFactor = clamp(combinedShadowFactor, 0.0, 1.0);
 	color.rgb *= combinedShadowFactor;
 	color.rgb = max(color.rgb, emissionColor);
 }
