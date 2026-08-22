@@ -1,18 +1,27 @@
 #version 330 compatibility
 
-uniform sampler2D colortex0;
 uniform sampler2D colortex1;
 
 in vec2 texcoord;
 
-/* RENDERTARGETS: 0 */
-layout(location = 0) out vec4 color;
+/* const int colortex2Format = RGBA16F; */
+const vec4 colortex2ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
+/* RENDERTARGETS: 2 */
+layout(location = 0) out vec4 bloomColor;
 
-const float BLOOM_INTENSITY = 0.08;
+vec2 getSafeSourceUV(vec2 offset, vec2 halfTexel) {
+	return clamp(texcoord + offset, halfTexel, vec2(1.0) - halfTexel);
+}
 
 void main() {
-	vec4 scene = texture(colortex0, texcoord);
-	vec3 bloom = texture(colortex1, texcoord).rgb;
-	vec3 result = scene.rgb + bloom * BLOOM_INTENSITY;
-	color = vec4(result, scene.a);
+	vec2 sourceSize = vec2(textureSize(colortex1, 0));
+	vec2 sourceTexel = 1.0 / sourceSize;
+	vec2 halfTexel = sourceTexel * 0.5;
+
+	vec3 bloom = vec3(0.0);
+	bloom += texture(colortex1, getSafeSourceUV(vec2(-0.5, -0.5) * sourceTexel, halfTexel)).rgb;
+	bloom += texture(colortex1, getSafeSourceUV(vec2( 0.5, -0.5) * sourceTexel, halfTexel)).rgb;
+	bloom += texture(colortex1, getSafeSourceUV(vec2(-0.5,  0.5) * sourceTexel, halfTexel)).rgb;
+	bloom += texture(colortex1, getSafeSourceUV(vec2( 0.5,  0.5) * sourceTexel, halfTexel)).rgb;
+	bloomColor = vec4(bloom * 0.25, 1.0);
 }
