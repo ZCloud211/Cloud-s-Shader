@@ -9,6 +9,7 @@ out vec2 lmcoord;
 out vec2 texcoord;
 out vec4 glcolor;
 out vec3 worldPosition;
+flat out vec3 worldGeometryNormal;
 flat out float blockId;
 
 void main() {
@@ -20,5 +21,9 @@ void main() {
 	vec3 playerPosition = (gbufferModelViewInverse *
 		vec4(viewPosition, 1.0)).xyz;
 	worldPosition = playerPosition + cameraPosition;
+	vec3 viewGeometryNormal = normalize(gl_NormalMatrix * gl_Normal);
+	worldGeometryNormal = normalize(
+		mat3(gbufferModelViewInverse) * viewGeometryNormal
+	);
 	blockId = mc_Entity.x;
 }

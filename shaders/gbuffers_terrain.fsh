@@ -10,12 +10,30 @@ in vec2 texcoord;
 in vec4 glcolor;
 flat in float blockId;
 
-/* const int colortex3Format = RGBA8; */
+/* const int colortex3Format = RGBA16F; */
 const vec4 colortex3ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
 
 /* RENDERTARGETS: 0,3 */
 layout(location = 0) out vec4 color;
 layout(location = 1) out vec4 materialData;
+
+vec3 getVisibleEmission(vec3 emissionRadiance) {
+	float peakRadiance = max(
+		emissionRadiance.r,
+		max(emissionRadiance.g, emissionRadiance.b)
+	);
+
+	if (peakRadiance <= 0.00001) {
+		return vec3(0.0);
+	}
+
+	vec3 chromaticity = emissionRadiance / peakRadiance;
+	const float EMISSION_DISPLAY_EXPOSURE = 0.55;
+	float visibleIntensity =
+		1.0 - exp(-peakRadiance * EMISSION_DISPLAY_EXPOSURE);
+
+	return chromaticity * visibleIntensity;
+}
 
 void main() {
 	vec4 albedo = texture(gtexture, texcoord) * glcolor;
@@ -30,15 +48,17 @@ void main() {
 	bool strongEmitter = abs(blockId - 10089.0) < 0.5;
 	bool smallEmitter = abs(blockId - 10090.0) < 0.5;
 	float textureBrightness = max(albedo.r, max(albedo.g, albedo.b));
-	float emissionStrength = 0.0;
+	float emissionRadianceScale = 0.0;
 	if (strongEmitter) {
-		emissionStrength = 1.0;
+		emissionRadianceScale = 2.40;
 	} else if (smallEmitter) {
-		emissionStrength = 0.75 * smoothstep(0.42, 0.82, textureBrightness);
+		emissionRadianceScale =
+			1.60 * smoothstep(0.42, 0.82, textureBrightness);
 	}
 
-	vec3 emissionColor = albedo.rgb * emissionStrength;
-	vec3 surfaceColor = max(litColor, emissionColor);
+	vec3 emissionRadiance = albedo.rgb * emissionRadianceScale;
+	vec3 visibleEmission = getVisibleEmission(emissionRadiance);
+	vec3 surfaceColor = max(litColor, visibleEmission);
 	color = vec4(surfaceColor, albedo.a);
-	materialData = vec4(clamp(emissionColor, 0.0, 1.0), blockLight);
+	materialData = vec4(emissionRadiance, blockLight);
 }

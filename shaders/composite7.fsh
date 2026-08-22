@@ -2,6 +2,7 @@
 
 uniform sampler2D colortex0;
 uniform sampler2D colortex4;
+uniform sampler2D colortex5;
 uniform sampler2D depthtex0;
 uniform sampler2D depthtex1;
 
@@ -19,6 +20,13 @@ in vec2 texcoord;
 /* RENDERTARGETS: 0 */
 layout(location = 0) out vec4 color;
 
+const bool DEBUG_OPAQUE_SCENE = false;
+const bool DEBUG_WATER_NORMAL = false;
+const bool DEBUG_WATER_THICKNESS = false;
+const bool DEBUG_WATER_REFRACTION = false;
+const bool DEBUG_WATER_FRESNEL = false;
+const bool DEBUG_WATER_SSR = false;
+
 vec3 reconstructViewPosition(vec2 screenUV, float depth) {
 	vec3 ndcPosition = vec3(screenUV, depth) * 2.0 - 1.0;
 	vec4 viewPosition = gbufferProjectionInverse * vec4(ndcPosition, 1.0);
@@ -34,6 +42,14 @@ bool projectToScreen(vec3 viewPosition, out vec2 screenUV) {
 	screenUV = ndcPosition * 0.5 + 0.5;
 	return screenUV.x > 0.0 && screenUV.x < 1.0 &&
 		screenUV.y > 0.0 && screenUV.y < 1.0;
+}
+
+float getScreenEdgeFade(vec2 screenUV) {
+	float edgeDistance = min(
+		min(screenUV.x, 1.0 - screenUV.x),
+		min(screenUV.y, 1.0 - screenUV.y)
+	);
+	return smoothstep(0.015, 0.08, edgeDistance);
 }
 
 bool traceWaterSSR(
@@ -120,6 +136,11 @@ bool traceWaterSSR(
 }
 
 void main() {
+	if (DEBUG_OPAQUE_SCENE) {
+		color = texture(colortex5, texcoord);
+		return;
+	}
+
 	vec4 scene = texture(colortex0, texcoord);
 	vec4 waterData = texture(colortex4, texcoord);
 	float waterMask = waterData.a;
@@ -136,12 +157,67 @@ void main() {
 		waterNormal = -waterNormal;
 	}
 
-	const float WATER_F0 = 0.02;
+	float opaqueDepth = texture(depthtex1, texcoord).r;
+	float waterThickness = 24.0;
+	if (opaqueDepth < 0.999999) {
+		vec3 opaqueViewPosition = reconstructViewPosition(texcoord, opaqueDepth);
+		if (opaqueViewPosition.z < waterViewPosition.z - 0.001) {
+			waterThickness = clamp(
+				length(opaqueViewPosition - waterViewPosition),
+				0.0,
+				24.0
+			);
+		}
+	}
+
+	const float AIR_TO_WATER_ETA = 1.0 / 1.333;
+	vec3 incidentDirection = normalize(waterViewPosition);
+	vec3 refractedDirection = refract(
+		incidentDirection,
+		waterNormal,
+		AIR_TO_WATER_ETA
+	);
+	vec2 refractedUV = texcoord;
+	if (dot(refractedDirection, refractedDirection) > 0.00001) {
+		float refractionDistance = min(0.12 + waterThickness * 0.16, 1.75);
+		vec2 candidateUV;
+		if (projectToScreen(
+			waterViewPosition + refractedDirection * refractionDistance,
+			candidateUV
+		)) {
+			float candidateDepth = texture(depthtex1, candidateUV).r;
+			bool isSkyBehindWater = candidateDepth >= 0.999999;
+			bool isOpaqueBehindWater = false;
+			if (!isSkyBehindWater) {
+				vec3 candidateViewPosition = reconstructViewPosition(
+					candidateUV,
+					candidateDepth
+				);
+				isOpaqueBehindWater =
+					candidateViewPosition.z < waterViewPosition.z - 0.001;
+			}
+
+			if (isSkyBehindWater || isOpaqueBehindWater) {
+				refractedUV = mix(
+					texcoord,
+					candidateUV,
+					getScreenEdgeFade(candidateUV)
+				);
+			}
+		}
+	}
+
+	const vec3 WATER_ABSORPTION = vec3(0.18, 0.070, 0.030);
+	const vec3 WATER_SCATTER_COLOR = vec3(0.012, 0.065, 0.085);
+	vec3 transmittance = exp(-WATER_ABSORPTION * waterThickness);
+	vec3 refractedScene = texture(colortex5, refractedUV).rgb;
+	vec3 transmissionColor = refractedScene * transmittance +
+		WATER_SCATTER_COLOR * (vec3(1.0) - transmittance);
+
+	const float WATER_F0 = 0.02037;
 	float NoV = clamp(dot(waterNormal, viewDirection), 0.0, 1.0);
 	float fresnel = WATER_F0 + (1.0 - WATER_F0) * pow(1.0 - NoV, 5.0);
-	float reflectionStrength = mix(0.035, 0.48, fresnel);
 
-	vec3 incidentDirection = normalize(waterViewPosition);
 	vec3 reflectionDirection = normalize(reflect(incidentDirection, waterNormal));
 	float skyUp = clamp(dot(reflectionDirection, normalize(upPosition)), 0.0, 1.0);
 	vec3 reflectedSky = mix(fogColor, skyColor,
@@ -156,16 +232,37 @@ void main() {
 		hitUV,
 		travelDistance
 	);
-	vec3 ssrColor = texture(colortex0, hitUV).rgb;
-	float edgeDistance = min(min(hitUV.x, 1.0 - hitUV.x),
-		min(hitUV.y, 1.0 - hitUV.y));
-	float edgeFade = smoothstep(0.015, 0.08, edgeDistance);
+	vec3 ssrColor = reflectedSky;
+	if (hitFound) {
+		ssrColor = texture(colortex5, hitUV).rgb;
+	}
+	float edgeFade = hitFound ? getScreenEdgeFade(hitUV) : 0.0;
 	float distanceFade = 1.0 - clamp(travelDistance / 24.0, 0.0, 1.0);
 	float grazingFade = smoothstep(0.03, 0.20, NoV);
 	float ssrConfidence = hitFound ? edgeFade * distanceFade * grazingFade : 0.0;
 	vec3 reflectionColor = mix(reflectedSky, ssrColor, ssrConfidence);
 
-	float finalReflectionAmount = clamp(reflectionStrength, 0.0, 0.55);
-	vec3 result = mix(scene.rgb, reflectionColor, finalReflectionAmount);
+	if (DEBUG_WATER_NORMAL) {
+		color = vec4(waterNormal * 0.5 + 0.5, 1.0);
+		return;
+	}
+	if (DEBUG_WATER_THICKNESS) {
+		color = vec4(vec3(waterThickness / 24.0), 1.0);
+		return;
+	}
+	if (DEBUG_WATER_REFRACTION) {
+		color = vec4(refractedScene, 1.0);
+		return;
+	}
+	if (DEBUG_WATER_FRESNEL) {
+		color = vec4(vec3(fresnel), 1.0);
+		return;
+	}
+	if (DEBUG_WATER_SSR) {
+		color = vec4(vec3(ssrConfidence), 1.0);
+		return;
+	}
+
+	vec3 result = mix(transmissionColor, reflectionColor, fresnel);
 	color = vec4(result, scene.a);
 }
