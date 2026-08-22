@@ -23,8 +23,8 @@ layout(location = 0) out vec4 color;
 layout(location = 1) out vec4 waterData;
 
 const int noiseTextureResolution = 256;
-const float WATER_NORMAL_STRENGTH = 1.6;
-const float WATER_NORMAL_MAX_SLOPE = 0.28;
+const float WATER_NORMAL_STRENGTH = 1.05;
+const float WATER_NORMAL_MAX_SLOPE = 0.18;
 
 ivec2 wrapNoiseCell(ivec2 cell) {
 	ivec2 wrappedCell = cell % noiseTextureResolution;
@@ -96,13 +96,13 @@ float evaluateWaterHeight(
 	float ridge5 = 1.0 - abs(smoothValueNoise(layer5Position, 0) * 2.0 - 1.0);
 	float ridge6 = 1.0 - abs(smoothValueNoise(layer6Position, 2) * 2.0 - 1.0);
 
-	float height = layer1 * 0.160 * getOctaveFilter(pixelFootprint, 0.055);
-	height += layer2 * 0.090 * getOctaveFilter(pixelFootprint, 0.113);
-	height += layer3 * 0.050 * getOctaveFilter(pixelFootprint, 0.227);
-	height += layer4 * 0.025 * getOctaveFilter(pixelFootprint, 0.463);
-	height += (ridge5 * 2.0 - 1.0) * 0.010 *
+	float height = layer1 * 0.100 * getOctaveFilter(pixelFootprint, 0.055);
+	height += layer2 * 0.065 * getOctaveFilter(pixelFootprint, 0.113);
+	height += layer3 * 0.043 * getOctaveFilter(pixelFootprint, 0.227);
+	height += layer4 * 0.022 * getOctaveFilter(pixelFootprint, 0.463);
+	height += (ridge5 * 2.0 - 1.0) * 0.006 *
 		getOctaveFilter(pixelFootprint, 0.917);
-	height += (ridge6 * 2.0 - 1.0) * 0.004 *
+	height += (ridge6 * 2.0 - 1.0) * 0.002 *
 		getOctaveFilter(pixelFootprint, 1.590);
 	return height;
 }
