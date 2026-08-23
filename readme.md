@@ -1,4 +1,4 @@
-Let's use Codex to write our own first iris shader
+Use Codex to write your first iris shader
 
 <img width="1557" height="852" alt="2026-08-23_01 12 45" src="https://github.com/user-attachments/assets/79b28a28-7ec8-44d0-9778-0368593c052e" />
 
